@@ -11,6 +11,12 @@ TARGET_LINK="$BIN_DIR/desktop-rdp"
 TARGET_DESKTOP="$APP_DIR/io.github.dilucayvl.RemoteDesktopLinux.desktop"
 TARGET_ICON="$ICON_DIR/io.github.dilucayvl.RemoteDesktopLinux.svg"
 
+LOCALE_STR="${LC_ALL:-${LC_MESSAGES:-${LANGUAGE:-${LANG:-}}}}"
+IS_PT=false
+if [[ "${LOCALE_STR,,}" == pt* ]]; then
+  IS_PT=true
+fi
+
 mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR"
 
 install -m 0755 "$SCRIPT_DIR/src/remote_desktop_linux.py" "$TARGET_BIN"
@@ -25,7 +31,11 @@ chmod 0644 "$TARGET_DESKTOP"
 if ! command -v sdl-freerdp >/dev/null 2>&1 && ! command -v xfreerdp >/dev/null 2>&1; then
   if command -v flatpak >/dev/null 2>&1; then
     if ! flatpak info com.freerdp.FreeRDP >/dev/null 2>&1; then
-      echo "Instalando FreeRDP via Flatpak..."
+      if [ "$IS_PT" = true ]; then
+        echo "Instalando FreeRDP via Flatpak..."
+      else
+        echo "Installing FreeRDP via Flatpak..."
+      fi
       flatpak install --user -y flathub com.freerdp.FreeRDP || true
     fi
     if flatpak info com.freerdp.FreeRDP >/dev/null 2>&1; then
@@ -48,5 +58,10 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" || true
 fi
 
-echo "Remote Desktop Linux (Área de trabalho remota) instalado com sucesso!"
-echo "Execute '$TARGET_BIN' ou procure por 'Remote Desktop Linux' no menu de aplicativos."
+if [ "$IS_PT" = true ]; then
+  echo "Área de trabalho remota instalado com sucesso!"
+  echo "Execute '$TARGET_BIN' ou procure por 'Área de trabalho remota' no menu de aplicativos."
+else
+  echo "Remote Desktop Linux installed successfully!"
+  echo "Run '$TARGET_BIN' or search for 'Remote Desktop Linux' in your application menu."
+fi

@@ -1,32 +1,29 @@
-# DesktopRDP — Remote Desktop Linux (Área de trabalho remota)
+# DesktopRDP
 
-Cliente gráfico simples e moderno em **GTK4 / Libadwaita** para acessar máquinas **Windows** no Linux via **FreeRDP**, com descoberta automática de computadores no **Tailscale** ou conexão direta por **IP, usuário e senha**.
+**Remote Desktop Linux** (English) / **Área de trabalho remota** (Português) — A simple native **GTK4 / Libadwaita** GUI client for **FreeRDP** with automatic **Tailscale** discovery and direct IP/username/password login.
 
-## Recursos
-
-- **Descoberta automática via Tailscale:** lista seus computadores da rede Tailscale (`tailscale status --json`) e permite preencher o IP ou conectar com 1 clique.
-- **Conexão direta por IP / Host:** suporte a IP da rede local, IP Tailscale, `IP:PORTA` (padrão `3389`), `DOMINIO\usuario`, `.\usuario` ou conta Microsoft.
-- **Perfis salvos e senhas seguras:** salva os PCs em `~/.config/remote-desktop-linux/profiles.json` (`0600`) e armazena as senhas no **GNOME Keyring** (`libsecret`). A senha nunca é exposta nos argumentos de linha de comando (`argv`), sendo enviada com `/from-stdin:force`.
-- **Opções práticas da sessão:**
-  - Janela redimensionável (`+dynamic-resolution`), Tela cheia (`+f`, saia com `Ctrl+Alt+Enter`), `1920 × 1080` ou `1366 × 768`.
-  - Redirecionamento de áudio e compartilhamento da pasta `~/Downloads`.
-  - Botão **Testar Conexão** para validar se a porta RDP (`3389`) está acessível antes de abrir a sessão.
-  - Mensagens de erro amigáveis em português quando houver falha de rede ou autenticação.
+O aplicativo adapta automaticamente o nome no menu do sistema, o título da janela e toda a interface de acordo com o idioma do usuário (`pt_BR` → **Área de trabalho remota**, demais idiomas → **Remote Desktop Linux**). Você também pode forçar o idioma pela linha de comando usando `--lang pt_BR` ou `--lang en`.
 
 ---
 
-## Instalação
+## Português (pt-BR)
 
-### Opção 1: Pacote `.deb` (Ubuntu / Debian e derivados)
+### Recursos
+- **Descoberta automática via Tailscale:** lista seus computadores da rede Tailscale (`tailscale status --json`) e permite preencher o IP ou conectar com 1 clique.
+- **Conexão direta por IP / Host:** suporte a IP da rede local, IP Tailscale, `IP:PORTA` (padrão `3389`), `DOMINIO\usuario`, `.\usuario` ou conta Microsoft.
+- **Perfis salvos e senhas seguras:** salva os PCs em `~/.config/remote-desktop-linux/profiles.json` (`0600`) e armazena as senhas no **GNOME Keyring** (`libsecret`). A senha nunca é exposta na linha de comando (`argv`), sendo enviada com `/from-stdin:force`.
+- **Opções práticas da sessão:** janela redimensionável (`+dynamic-resolution`), tela cheia (`+f`, saia com `Ctrl+Alt+Enter`), `1920 × 1080` ou `1366 × 768`, áudio e compartilhamento da pasta `~/Downloads`, além do botão **Testar Conexão**.
 
-Baixe o arquivo `remote-desktop-linux_1.0.0_all.deb` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e instale com:
+### Instalação
+
+#### Opção 1: Pacote `.deb` (Ubuntu / Debian e derivados)
+Baixe o arquivo `remote-desktop-linux_1.1.0_all.deb` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e instale com:
 
 ```bash
-sudo apt install ./remote-desktop-linux_1.0.0_all.deb
+sudo apt install ./remote-desktop-linux_1.1.0_all.deb
 ```
 
-### Opção 2: Instalação local no usuário (qualquer distribuição Linux)
-
+#### Opção 2: Instalação local no usuário (qualquer Linux)
 ```bash
 git clone https://github.com/DiLucaYVL/DesktopRDP.git
 cd DesktopRDP
@@ -34,20 +31,40 @@ cd DesktopRDP
 ```
 
 Para desinstalar na instalação local:
-
 ```bash
 ./uninstall.sh
 ```
 
 ---
 
-## Pré-requisitos (FreeRDP e bibliotecas GTK4)
+## English
 
-A aplicação detecta automaticamente o **FreeRDP** instalado via pacote da distro (`sdl-freerdp`, `wlfreerdp` ou `xfreerdp`) ou via **Flatpak** (`com.freerdp.FreeRDP`).
+### Features
+- **Tailscale Auto-Discovery:** detects Windows/desktop peers from `tailscale status --json` so you can fill the IP or launch in one click.
+- **Direct IP / Host Access:** supports LAN IP, Tailscale IP, `HOST:PORT` (default `3389`), `DOMAIN\user`, `.\user`, or Microsoft accounts.
+- **Saved Profiles & GNOME Keyring:** saves profiles in `~/.config/remote-desktop-linux/profiles.json` (`0600`) and stores passwords in **GNOME Keyring** (`libsecret`), passing credentials securely over stdin (`/from-stdin:force`).
+- **Automatic Language Support:** switches automatically between **Remote Desktop Linux** (`en`) and **Área de trabalho remota** (`pt_BR`) based on system locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, `LANG`), or manually via `--lang en` / `--lang pt_BR`.
 
-Se você ainda não tiver o FreeRDP instalado, use uma das opções abaixo:
+### Installation
 
-- **Via Flatpak (sem `sudo`, recomendado):**
+#### Debian / Ubuntu (`.deb`)
+Download `remote-desktop-linux_1.1.0_all.deb` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases):
+```bash
+sudo apt install ./remote-desktop-linux_1.1.0_all.deb
+```
+
+#### User-level Install (Any Linux Distro)
+```bash
+git clone https://github.com/DiLucaYVL/DesktopRDP.git
+cd DesktopRDP
+./install.sh
+```
+
+---
+
+## Prerequisites / Pré-requisitos (FreeRDP)
+
+- **Via Flatpak (no `sudo` required):**
   ```bash
   flatpak install --user flathub com.freerdp.FreeRDP
   ```
@@ -55,11 +72,3 @@ Se você ainda não tiver o FreeRDP instalado, use uma das opções abaixo:
   ```bash
   sudo apt install freerdp-sdl python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-secret-1
   ```
-
----
-
-## Dicas para conectar ao Windows
-
-1. **Ative a Área de Trabalho Remota no Windows:** vá em *Configurações > Sistema > Área de Trabalho Remota* e ative a opção (requer Windows 10/11 Pro, Enterprise ou Education).
-2. **Atalho de tela cheia:** dentro de uma sessão FreeRDP em tela cheia, pressione `Ctrl + Alt + Enter` para alternar entre tela cheia e janela.
-3. **Login com PIN no Windows 11:** se o Windows pedir senha no RDP e recusar seu PIN, faça um login no Windows usando a senha da conta uma vez para liberar o cache NLA.

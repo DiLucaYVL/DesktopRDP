@@ -1,13 +1,21 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Remote Desktop Linux (Área de trabalho remota)
-GenericName=Área de trabalho remota
-Comment=Acesse computadores Windows via FreeRDP, Tailscale ou IP
+Name=Remote Desktop Linux
+Name[pt_BR]=Área de trabalho remota
+Name[pt]=Área de trabalho remota
+GenericName=Remote Desktop Client
+GenericName[pt_BR]=Cliente de Área de Trabalho Remota
+GenericName[pt]=Cliente de Área de Trabalho Remota
+Comment=Connect to Windows machines via FreeRDP, Tailscale, or IP
+Comment[pt_BR]=Acesse computadores Windows via FreeRDP, Tailscale ou IP
+Comment[pt]=Acesse computadores Windows via FreeRDP, Tailscale ou IP
 Exec=remote-desktop-linux
 Icon=io.github.dilucayvl.RemoteDesktopLinux
 Terminal=false
 Categories=Network;RemoteAccess;GTK;
-Keywords=rdp;freerdp;windows;remoto;remote;desktop;area de trabalho remota;tailscale;
+Keywords=rdp;freerdp;windows;remote;desktop;tailscale;
+Keywords[pt_BR]=rdp;freerdp;windows;remoto;area de trabalho remota;tailscale;
+Keywords[pt]=rdp;freerdp;windows;remoto;area de trabalho remota;tailscale;
 StartupNotify=true
 StartupWMClass=io.github.dilucayvl.RemoteDesktopLinux

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="1.0.0"
+VERSION="1.1.0"
 PKG_NAME="remote-desktop-linux"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$(mktemp -d)"
@@ -30,10 +30,10 @@ Maintainer: DiLucaYVL <brunodiluca10@outlook.com>
 Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-secret-1
 Recommends: freerdp-sdl | freerdp3-sdl | freerdp-x11 | flatpak, tailscale
 Homepage: https://github.com/DiLucaYVL/DesktopRDP
-Description: Remote Desktop Linux (Area de trabalho remota)
- Interface grafica simples e moderna em GTK4/Libadwaita para acessar
- maquinas Windows via FreeRDP, Tailscale ou IP direto na rede local,
- com armazenamento seguro de senhas no GNOME Keyring.
+Description: Remote Desktop Linux - GTK4/Libadwaita FreeRDP & Tailscale client
+ Simple native GTK4/Libadwaita remote desktop client (Area de trabalho remota)
+ to connect to Windows machines via FreeRDP, Tailscale, or local IP, with
+ secure password storage in GNOME Keyring and automatic EN / PT-BR localization.
 EOF
 
 install -m 0755 "$ROOT_DIR/src/remote_desktop_linux.py" "$DEB_ROOT/usr/bin/$PKG_NAME"

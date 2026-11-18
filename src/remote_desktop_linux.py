@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Remote Desktop Linux (Área de trabalho remota) — Cliente GTK4/Libadwaita para FreeRDP e Tailscale."""
+"""Remote Desktop Linux / Área de trabalho remota — GTK4/Libadwaita FreeRDP & Tailscale client."""
 
 from __future__ import annotations
 
 import json
+import locale
 import os
 import shutil
 import socket
@@ -23,22 +24,11 @@ gi.require_version("Secret", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Secret
 
 APP_ID = "io.github.dilucayvl.RemoteDesktopLinux"
-APP_TITLE = "Remote Desktop Linux"
-APP_SUBTITLE = "Área de trabalho remota"
-APP_FULL_NAME = "Remote Desktop Linux (Área de trabalho remota)"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 CONFIG_DIR = Path.home() / ".config" / "remote-desktop-linux"
 PROFILES_FILE = CONFIG_DIR / "profiles.json"
 ICONS_DIR = Path.home() / ".local" / "share" / "icons"
-
-DISPLAY_MODES = [
-    ("windowed", "Janela redimensionável (Recomendado)"),
-    ("fullscreen", "Tela cheia (Ctrl+Alt+Enter para sair)"),
-    ("1920x1080", "1920 × 1080 (Full HD)"),
-    ("1366x768", "1366 × 768 (HD)"),
-]
-DISPLAY_MODE_KEYS = [key for key, _ in DISPLAY_MODES]
 
 SECRET_SCHEMA = Secret.Schema.new(
     APP_ID,
@@ -56,6 +46,232 @@ KNOWN_ERR_MARKERS = (
     "HYBRID_REQUIRED_BY_SERVER",
 )
 
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    "en": {
+        "app_name": "Remote Desktop Linux",
+        "keyring_label": "Remote Desktop Linux ({profile_id})",
+        "err_host_empty": "Enter the computer IP address or hostname.",
+        "err_ipv6_unclosed": "Invalid IPv6 address (missing closing bracket).",
+        "err_host_before_port": "Enter the IP address or hostname before the port.",
+        "err_port_invalid": "Invalid port: '{port}'. Enter a number between 1 and 65535.",
+        "err_port_range": "Port out of allowed range (1-65535): {port}.",
+        "err_freerdp_missing": "FreeRDP not found.",
+        "err_auth_title": "Username or password rejected",
+        "err_auth_body": (
+            "The Windows machine ({host}) rejected the provided credentials.\n\n"
+            "Tips:\n"
+            "• Check your username and password (try .\\username for a local account or your Microsoft account email).\n"
+            "• On Windows 11 with PIN-only sign-in, sign in once on the Windows machine using your password to enable NLA remote login."
+        ),
+        "err_dns_title": "Computer not found",
+        "err_dns_body": (
+            "Could not resolve address '{host}'.\n\n"
+            "Verify the Tailscale IP or local network hostname and try again."
+        ),
+        "err_connect_title": "Could not connect to {host}:{port}",
+        "err_connect_body": (
+            "Check that:\n"
+            "• The Windows machine is powered on and connected to Tailscale (or the same local network).\n"
+            "• Remote Desktop is enabled on Windows (Settings > System > Remote Desktop — requires Windows Pro/Enterprise).\n"
+            "• The Windows Firewall is not blocking the RDP port (3389)."
+        ),
+        "err_technical_details": "Technical details:",
+        "mode_windowed": "Resizable window (Recommended)",
+        "mode_fullscreen": "Fullscreen (Ctrl+Alt+Enter to exit)",
+        "mode_1080": "1920 × 1080 (Full HD)",
+        "mode_768": "1366 × 768 (HD)",
+        "tooltip_refresh": "Refresh Tailscale PCs",
+        "tooltip_clear": "New connection / Clear fields",
+        "group_tailscale_title": "Tailscale PCs",
+        "group_tailscale_desc": "Click a computer to fill in its IP automatically",
+        "group_saved_title": "Saved PCs",
+        "group_saved_desc": "Click to edit or press Connect to launch directly",
+        "group_creds_title": "Connection Details",
+        "entry_host": "IP or Host (Tailscale or Local Network)",
+        "entry_user": "Windows Username",
+        "entry_pass": "Password",
+        "entry_name": "Computer Name (optional)",
+        "switch_save_title": "Save this PC and password",
+        "switch_save_sub": "Stores the profile above and saves the password in the system keyring",
+        "group_opts_title": "Session Options",
+        "combo_display": "Display Mode",
+        "switch_sound": "Play Windows audio on this PC",
+        "switch_downloads": "Share Downloads folder",
+        "btn_test": "Test Connection",
+        "btn_connect_rdp": "Connect via RDP",
+        "btn_connect": "Connect",
+        "btn_select": "Select",
+        "tooltip_delete": "Remove saved PC",
+        "btn_ok": "OK",
+        "toast_cleared": "Fields cleared for a new connection.",
+        "toast_profile_loaded": "Profile '{name}' loaded.",
+        "toast_profile_deleted": "Saved PC removed.",
+        "tailscale_loading": "Searching for Tailscale computers...",
+        "tailscale_not_found": "Tailscale is not installed on this system.",
+        "tailscale_query_err": "Error querying Tailscale: {err}",
+        "tailscale_disconnected": "Tailscale is disconnected or unavailable right now.",
+        "tailscale_invalid_json": "Invalid response from Tailscale: {err}",
+        "tailscale_inactive": "Tailscale is not active ({state}).",
+        "tailscale_empty": "No computers found on your Tailscale network.",
+        "os_unknown": "unknown",
+        "status_online": "Online",
+        "status_offline": "Offline",
+        "toast_peer_saved_loaded": "Saved credentials for '{name}' loaded.",
+        "toast_peer_selected": "{hostname} selected — enter username and password.",
+        "toast_testing": "Testing port {port} on {host}...",
+        "toast_test_ok": "Connection OK! Port {port} is reachable on {host}.",
+        "alert_test_fail_title": "Port {port} unreachable on {host}",
+        "alert_test_fail_body": (
+            "Could not reach the RDP service.\n\n"
+            "Check that Windows is powered on, connected to Tailscale/local network, and has Remote Desktop enabled.\n\n"
+            "Error: {err}"
+        ),
+        "toast_keyring_warn": "PC saved, but the system keyring could not store the password.",
+        "toast_need_user_for_pw": "Enter the Windows username before connecting with a password.",
+        "alert_freerdp_missing_title": "FreeRDP not installed",
+        "alert_freerdp_missing_body": (
+            "No FreeRDP client was found on this computer.\n\n"
+            "Install one of the options below in a terminal and try again:\n"
+            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP\n"
+            "• Ubuntu/Debian: sudo apt install freerdp-sdl"
+        ),
+        "toast_connecting": "Starting RDP session to {host}...",
+        "alert_launch_err": "Failed to start FreeRDP",
+        "alert_session_err": "FreeRDP session error",
+    },
+    "pt_BR": {
+        "app_name": "Área de trabalho remota",
+        "keyring_label": "Área de trabalho remota ({profile_id})",
+        "err_host_empty": "Informe o IP ou nome do computador.",
+        "err_ipv6_unclosed": "Endereço IPv6 inválido (colchete não fechado).",
+        "err_host_before_port": "Informe o IP ou nome do computador antes da porta.",
+        "err_port_invalid": "Porta inválida: '{port}'. Use um número entre 1 e 65535.",
+        "err_port_range": "Porta fora do intervalo permitido (1-65535): {port}.",
+        "err_freerdp_missing": "FreeRDP não encontrado.",
+        "err_auth_title": "Falha de usuário ou senha",
+        "err_auth_body": (
+            "O computador Windows ({host}) recusou as credenciais informadas.\n\n"
+            "Dicas:\n"
+            "• Confira usuário e senha (tente .\\usuario para conta local ou seu e-mail da conta Microsoft).\n"
+            "• No Windows 11 com login só por PIN, faça um login usando sua senha diretamente no Windows para liberar o acesso remoto (NLA)."
+        ),
+        "err_dns_title": "Computador não encontrado",
+        "err_dns_body": (
+            "Não foi possível resolver o endereço '{host}'.\n\n"
+            "Verifique o IP do Tailscale ou da rede local e tente novamente."
+        ),
+        "err_connect_title": "Não foi possível conectar a {host}:{port}",
+        "err_connect_body": (
+            "Verifique se:\n"
+            "• O computador Windows está ligado e conectado ao Tailscale (ou na mesma rede local).\n"
+            "• A Área de Trabalho Remota está ativada no Windows (Configurações > Sistema > Área de Trabalho Remota — requer Windows Pro/Enterprise).\n"
+            "• O firewall do Windows não está bloqueando a porta RDP (3389)."
+        ),
+        "err_technical_details": "Detalhes técnicos:",
+        "mode_windowed": "Janela redimensionável (Recomendado)",
+        "mode_fullscreen": "Tela cheia (Ctrl+Alt+Enter para sair)",
+        "mode_1080": "1920 × 1080 (Full HD)",
+        "mode_768": "1366 × 768 (HD)",
+        "tooltip_refresh": "Atualizar PCs do Tailscale",
+        "tooltip_clear": "Nova conexão / Limpar campos",
+        "group_tailscale_title": "PCs no Tailscale",
+        "group_tailscale_desc": "Clique em um computador para preencher o IP automaticamente",
+        "group_saved_title": "Meus PCs Salvos",
+        "group_saved_desc": "Clique para editar ou use Conectar para abrir direto",
+        "group_creds_title": "Dados de Acesso",
+        "entry_host": "IP ou Host (Tailscale ou Rede Local)",
+        "entry_user": "Usuário do Windows",
+        "entry_pass": "Senha",
+        "entry_name": "Nome deste PC (opcional)",
+        "switch_save_title": "Salvar este PC e senha",
+        "switch_save_sub": "Guarda o acesso na lista acima e a senha no chaveiro do sistema",
+        "group_opts_title": "Opções da Sessão",
+        "combo_display": "Modo de Tela",
+        "switch_sound": "Áudio do Windows neste PC",
+        "switch_downloads": "Compartilhar pasta Downloads",
+        "btn_test": "Testar Conexão",
+        "btn_connect_rdp": "Conectar via RDP",
+        "btn_connect": "Conectar",
+        "btn_select": "Selecionar",
+        "tooltip_delete": "Remover PC salvo",
+        "btn_ok": "Entendi",
+        "toast_cleared": "Campos limpos para nova conexão.",
+        "toast_profile_loaded": "Perfil '{name}' carregado.",
+        "toast_profile_deleted": "PC salvo removido.",
+        "tailscale_loading": "Buscando computadores no Tailscale...",
+        "tailscale_not_found": "Tailscale não encontrado neste sistema.",
+        "tailscale_query_err": "Erro ao consultar Tailscale: {err}",
+        "tailscale_disconnected": "Tailscale desconectado ou indisponível no momento.",
+        "tailscale_invalid_json": "Resposta inválida do Tailscale: {err}",
+        "tailscale_inactive": "Tailscale não está ativo ({state}).",
+        "tailscale_empty": "Nenhum computador encontrado na sua rede Tailscale.",
+        "os_unknown": "desconhecido",
+        "status_online": "Online",
+        "status_offline": "Offline",
+        "toast_peer_saved_loaded": "Credenciais salvas de '{name}' carregadas.",
+        "toast_peer_selected": "{hostname} selecionado — informe usuário e senha.",
+        "toast_testing": "Testando porta {port} em {host}...",
+        "toast_test_ok": "Conexão OK! Porta {port} acessível em {host}.",
+        "alert_test_fail_title": "Porta {port} inacessível em {host}",
+        "alert_test_fail_body": (
+            "Não foi possível alcançar o serviço RDP.\n\n"
+            "Verifique se o Windows está ligado, conectado ao Tailscale/rede local e com a Área de Trabalho Remota ativada.\n\n"
+            "Erro: {err}"
+        ),
+        "toast_keyring_warn": "PC salvo, mas o chaveiro do sistema não pôde guardar a senha.",
+        "toast_need_user_for_pw": "Informe o usuário do Windows antes de conectar com senha.",
+        "alert_freerdp_missing_title": "FreeRDP não instalado",
+        "alert_freerdp_missing_body": (
+            "Não foi encontrado nenhum cliente FreeRDP neste computador.\n\n"
+            "Instale uma das opções abaixo no terminal e tente novamente:\n"
+            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP\n"
+            "• Ubuntu/Debian: sudo apt install freerdp-sdl"
+        ),
+        "toast_connecting": "Iniciando conexão RDP com {host}...",
+        "alert_launch_err": "Erro ao abrir FreeRDP",
+        "alert_session_err": "Erro na sessão FreeRDP",
+    },
+}
+
+
+def detect_language(cli_lang: str | None = None) -> str:
+    """Detect user UI language ('pt_BR' or 'en') from CLI flag or system locale."""
+    candidates: list[str | None] = [
+        cli_lang,
+        os.environ.get("LC_ALL"),
+        os.environ.get("LC_MESSAGES"),
+        next((item for item in os.environ.get("LANGUAGE", "").split(":") if item.strip()), None),
+        os.environ.get("LANG"),
+        locale.getlocale()[0],
+    ]
+    for raw in candidates:
+        if not raw:
+            continue
+        cleaned = raw.strip()
+        if not cleaned:
+            continue
+        base = cleaned.split(".")[0].split("@")[0].upper()
+        if base in {"C", "POSIX"}:
+            continue
+        if cleaned.lower().startswith("pt"):
+            return "pt_BR"
+        return "en"
+    return "en"
+
+
+CURRENT_LANG = detect_language()
+
+
+def tr(key: str, **kwargs: Any) -> str:
+    """Return translated string for CURRENT_LANG with optional format args."""
+    table = TRANSLATIONS.get(CURRENT_LANG, TRANSLATIONS["en"])
+    template = table.get(key) or TRANSLATIONS["en"].get(key, key)
+    return template.format(**kwargs) if kwargs else template
+
+
+DISPLAY_MODE_KEYS = ["windowed", "fullscreen", "1920x1080", "1366x768"]
+DISPLAY_MODE_TR_KEYS = ["mode_windowed", "mode_fullscreen", "mode_1080", "mode_768"]
+
 _FREERDP_CMD_UNSET = object()
 _FREERDP_CMD_CACHE: list[str] | None | object = _FREERDP_CMD_UNSET
 
@@ -64,7 +280,7 @@ def parse_host_port(raw_host: str, fallback_port: int = 3389) -> tuple[str, int]
     """Parse host and optional port from user input, supporting IPv4, hostnames, and IPv6."""
     text = raw_host.strip()
     if not text:
-        raise ValueError("Informe o IP ou nome do computador.")
+        raise ValueError(tr("err_host_empty"))
 
     if text.startswith("["):
         if "]:" in text:
@@ -73,14 +289,14 @@ def parse_host_port(raw_host: str, fallback_port: int = 3389) -> tuple[str, int]
             return addr.strip(), port
         if text.endswith("]"):
             return text[1:-1].strip(), fallback_port
-        raise ValueError("Endereço IPv6 inválido (colchete não fechado).")
+        raise ValueError(tr("err_ipv6_unclosed"))
 
     colon_count = text.count(":")
     if colon_count == 1:
         host_part, port_str = text.split(":", 1)
         host_part = host_part.strip().rstrip(".")
         if not host_part:
-            raise ValueError("Informe o IP ou nome do computador antes da porta.")
+            raise ValueError(tr("err_host_before_port"))
         return host_part, _validate_port(port_str)
 
     if colon_count > 1:
@@ -93,9 +309,9 @@ def _validate_port(port_str: str) -> int:
     try:
         port = int(port_str.strip())
     except ValueError as exc:
-        raise ValueError(f"Porta inválida: '{port_str}'. Use um número entre 1 e 65535.") from exc
+        raise ValueError(tr("err_port_invalid", port=port_str)) from exc
     if not 1 <= port <= 65535:
-        raise ValueError(f"Porta fora do intervalo permitido (1-65535): {port}.")
+        raise ValueError(tr("err_port_range", port=port))
     return port
 
 
@@ -158,7 +374,7 @@ def build_freerdp_args(
     """Build FreeRDP CLI argv (never containing password) and optional stdin payload."""
     cmd = list(base_cmd) if base_cmd is not None else (resolve_freerdp_command() or [])
     if not cmd:
-        raise FileNotFoundError("FreeRDP não encontrado.")
+        raise FileNotFoundError(tr("err_freerdp_missing"))
 
     cmd.extend([f"/v:{host}", f"/port:{port}", "/cert:ignore", "+clipboard", "/network:auto"])
 
@@ -219,7 +435,7 @@ def parse_tailscale_peers(raw_json: str) -> tuple[str, list[dict[str, Any]]]:
             {
                 "hostname": hostname,
                 "ip": ipv4,
-                "os": os_name or "desconhecido",
+                "os": os_name or tr("os_unknown"),
                 "online": online,
             }
         )
@@ -242,7 +458,7 @@ def store_password(profile_id: str, password: str) -> bool:
                 SECRET_SCHEMA,
                 {"profile_id": profile_id},
                 Secret.COLLECTION_DEFAULT,
-                f"Remote Desktop Linux ({profile_id})",
+                tr("keyring_label", profile_id=profile_id),
                 password,
                 None,
             )
@@ -295,7 +511,7 @@ def save_profiles(profiles: list[dict[str, Any]]) -> None:
 
 
 def format_freerdp_error(host: str, port: int, output: str) -> tuple[str, str]:
-    """Generate a friendly Portuguese error title and message from FreeRDP output."""
+    """Generate a localized friendly error title and message from FreeRDP output."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     relevant = [
         line
@@ -315,38 +531,25 @@ def format_freerdp_error(host: str, port: int, output: str) -> tuple[str, str]:
             "HYBRID_REQUIRED_BY_SERVER",
         )
     ):
-        title = "Falha de usuário ou senha"
-        hint = (
-            f"O computador Windows ({host}) recusou as credenciais informadas.\n\n"
-            "Dicas:\n"
-            "• Confira usuário e senha (tente .\\usuario para conta local ou seu e-mail da conta Microsoft).\n"
-            "• No Windows 11 com login só por PIN, faça um login usando sua senha diretamente no Windows para liberar o acesso remoto (NLA)."
-        )
+        title = tr("err_auth_title")
+        hint = tr("err_auth_body", host=host)
     elif "DNS_NAME_NOT_FOUND" in upper:
-        title = "Computador não encontrado"
-        hint = (
-            f"Não foi possível resolver o endereço '{host}'.\n\n"
-            "Verifique o IP do Tailscale ou da rede local e tente novamente."
-        )
+        title = tr("err_dns_title")
+        hint = tr("err_dns_body", host=host)
     else:
-        title = f"Não foi possível conectar a {host}:{port}"
-        hint = (
-            "Verifique se:\n"
-            "• O computador Windows está ligado e conectado ao Tailscale (ou na mesma rede local).\n"
-            "• A Área de Trabalho Remota está ativada no Windows (Configurações > Sistema > Área de Trabalho Remota — requer Windows Pro/Enterprise).\n"
-            "• O firewall do Windows não está bloqueando a porta RDP (3389)."
-        )
+        title = tr("err_connect_title", host=host, port=port)
+        hint = tr("err_connect_body")
 
     if details:
-        return title, f"{hint}\n\nDetalhes técnicos:\n{details}"
+        return title, f"{hint}\n\n{tr('err_technical_details')}\n{details}"
     return title, hint
 
 
 class RemoteDesktopWindow(Adw.ApplicationWindow):
-    """Main window for Remote Desktop Linux (Área de trabalho remota)."""
+    """Main window for Remote Desktop Linux / Área de trabalho remota."""
 
     def __init__(self, app: Adw.Application) -> None:
-        super().__init__(application=app, title=APP_FULL_NAME)
+        super().__init__(application=app, title=tr("app_name"))
         self.set_default_size(560, 720)
         self.set_size_request(380, 500)
 
@@ -368,18 +571,17 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         self.toast_overlay.set_child(toolbar_view)
 
         header = Adw.HeaderBar()
-        header.set_title_widget(Adw.WindowTitle.new(APP_TITLE, APP_SUBTITLE))
 
         refresh_btn = Gtk.Button(
             icon_name="view-refresh-symbolic",
-            tooltip_text="Atualizar PCs do Tailscale",
+            tooltip_text=tr("tooltip_refresh"),
         )
         refresh_btn.connect("clicked", lambda *_: self.refresh_tailscale_peers())
         header.pack_start(refresh_btn)
 
         clear_btn = Gtk.Button(
             icon_name="edit-clear-all-symbolic",
-            tooltip_text="Nova conexão / Limpar campos",
+            tooltip_text=tr("tooltip_clear"),
         )
         clear_btn.connect("clicked", lambda *_: self.clear_form())
         header.pack_end(clear_btn)
@@ -401,61 +603,61 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
 
         # Group 1: Tailscale peers
         self.tailscale_group = Adw.PreferencesGroup(
-            title="PCs no Tailscale",
-            description="Clique em um computador para preencher o IP automaticamente",
+            title=tr("group_tailscale_title"),
+            description=tr("group_tailscale_desc"),
         )
         content_box.append(self.tailscale_group)
 
         # Group 2: Saved PCs
         self.saved_group = Adw.PreferencesGroup(
-            title="Meus PCs Salvos",
-            description="Clique para editar ou use Conectar para abrir direto",
+            title=tr("group_saved_title"),
+            description=tr("group_saved_desc"),
         )
         self.saved_group.set_visible(False)
         content_box.append(self.saved_group)
 
         # Group 3: Credentials & Host
-        creds_group = Adw.PreferencesGroup(title="Dados de Acesso")
+        creds_group = Adw.PreferencesGroup(title=tr("group_creds_title"))
         content_box.append(creds_group)
 
-        self.host_entry = Adw.EntryRow(title="IP ou Host (Tailscale ou Rede Local)")
+        self.host_entry = Adw.EntryRow(title=tr("entry_host"))
         self.host_entry.set_input_purpose(Gtk.InputPurpose.URL)
         self.host_entry.connect("entry-activated", lambda *_: self.on_connect_clicked())
         creds_group.add(self.host_entry)
 
-        self.user_entry = Adw.EntryRow(title="Usuário do Windows")
+        self.user_entry = Adw.EntryRow(title=tr("entry_user"))
         self.user_entry.connect("entry-activated", lambda *_: self.on_connect_clicked())
         creds_group.add(self.user_entry)
 
-        self.pass_entry = Adw.PasswordEntryRow(title="Senha")
+        self.pass_entry = Adw.PasswordEntryRow(title=tr("entry_pass"))
         self.pass_entry.connect("entry-activated", lambda *_: self.on_connect_clicked())
         creds_group.add(self.pass_entry)
 
-        self.name_entry = Adw.EntryRow(title="Nome deste PC (opcional)")
+        self.name_entry = Adw.EntryRow(title=tr("entry_name"))
         self.name_entry.connect("entry-activated", lambda *_: self.on_connect_clicked())
         creds_group.add(self.name_entry)
 
         self.save_switch = Adw.SwitchRow(
-            title="Salvar este PC e senha",
-            subtitle="Guarda o acesso na lista acima e a senha no chaveiro do sistema",
+            title=tr("switch_save_title"),
+            subtitle=tr("switch_save_sub"),
         )
         self.save_switch.set_active(True)
         creds_group.add(self.save_switch)
 
         # Group 4: Session options
-        opts_group = Adw.PreferencesGroup(title="Opções da Sessão")
+        opts_group = Adw.PreferencesGroup(title=tr("group_opts_title"))
         content_box.append(opts_group)
 
-        mode_labels = Gtk.StringList.new([label for _, label in DISPLAY_MODES])
-        self.display_combo = Adw.ComboRow(title="Modo de Tela", model=mode_labels)
+        mode_labels = Gtk.StringList.new([tr(k) for k in DISPLAY_MODE_TR_KEYS])
+        self.display_combo = Adw.ComboRow(title=tr("combo_display"), model=mode_labels)
         self.display_combo.set_selected(0)
         opts_group.add(self.display_combo)
 
-        self.sound_switch = Adw.SwitchRow(title="Áudio do Windows neste PC")
+        self.sound_switch = Adw.SwitchRow(title=tr("switch_sound"))
         self.sound_switch.set_active(True)
         opts_group.add(self.sound_switch)
 
-        self.downloads_switch = Adw.SwitchRow(title="Compartilhar pasta Downloads")
+        self.downloads_switch = Adw.SwitchRow(title=tr("switch_downloads"))
         self.downloads_switch.set_active(True)
         opts_group.add(self.downloads_switch)
 
@@ -465,12 +667,12 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         actions_box.set_margin_top(6)
         content_box.append(actions_box)
 
-        self.test_btn = Gtk.Button(label="Testar Conexão")
+        self.test_btn = Gtk.Button(label=tr("btn_test"))
         self.test_btn.add_css_class("pill")
         self.test_btn.connect("clicked", lambda *_: self.on_test_connection_clicked())
         actions_box.append(self.test_btn)
 
-        self.connect_btn = Gtk.Button(label="Conectar via RDP")
+        self.connect_btn = Gtk.Button(label=tr("btn_connect_rdp"))
         self.connect_btn.add_css_class("pill")
         self.connect_btn.add_css_class("suggested-action")
         self.connect_btn.connect("clicked", lambda *_: self.on_connect_clicked())
@@ -481,7 +683,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
 
     def show_alert(self, heading: str, body: str) -> None:
         dialog = Adw.AlertDialog.new(heading, body)
-        dialog.add_response("ok", "Entendi")
+        dialog.add_response("ok", tr("btn_ok"))
         dialog.set_default_response("ok")
         dialog.set_close_response("ok")
         dialog.present(self)
@@ -497,7 +699,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         self.sound_switch.set_active(True)
         self.downloads_switch.set_active(True)
         self.host_entry.grab_focus()
-        self.show_toast("Campos limpos para nova conexão.")
+        self.show_toast(tr("toast_cleared"))
 
     def _clear_group_rows(self, group: Adw.PreferencesGroup, tracked: list[Gtk.Widget]) -> None:
         for row in tracked:
@@ -558,14 +760,14 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
             btn_box.set_valign(Gtk.Align.CENTER)
 
-            connect_btn = Gtk.Button(label="Conectar")
+            connect_btn = Gtk.Button(label=tr("btn_connect"))
             connect_btn.add_css_class("suggested-action")
             connect_btn.connect("clicked", lambda _b, p=profile: self._connect_profile(p))
             btn_box.append(connect_btn)
 
             delete_btn = Gtk.Button(
                 icon_name="user-trash-symbolic",
-                tooltip_text="Remover PC salvo",
+                tooltip_text=tr("tooltip_delete"),
             )
             delete_btn.add_css_class("flat")
             delete_btn.connect("clicked", lambda _b, pid=profile["id"]: self._delete_profile(pid))
@@ -577,7 +779,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
 
     def _on_saved_row_activated(self, profile: dict[str, Any]) -> None:
         self._load_profile_into_form(profile)
-        self.show_toast(f"Perfil '{profile.get('name') or profile.get('host')}' carregado.")
+        self.show_toast(tr("toast_profile_loaded", name=profile.get("name") or profile.get("host")))
 
     def _delete_profile(self, profile_id: str) -> None:
         self.profiles = [p for p in self.profiles if p.get("id") != profile_id]
@@ -588,11 +790,11 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             self.selected_profile_id = None
         self._rebuild_saved_group()
         self.refresh_tailscale_peers()
-        self.show_toast("PC salvo removido.")
+        self.show_toast(tr("toast_profile_deleted"))
 
     def refresh_tailscale_peers(self) -> None:
         self._clear_group_rows(self.tailscale_group, self._tailscale_rows)
-        loading_row = Adw.ActionRow(title="Buscando computadores no Tailscale...")
+        loading_row = Adw.ActionRow(title=tr("tailscale_loading"))
         loading_row.add_prefix(Gtk.Spinner(spinning=True))
         self.tailscale_group.add(loading_row)
         self._tailscale_rows.append(loading_row)
@@ -600,7 +802,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         def worker() -> None:
             ts_bin = shutil.which("tailscale")
             if not ts_bin:
-                GLib.idle_add(self._render_tailscale_message, "Tailscale não encontrado neste sistema.")
+                GLib.idle_add(self._render_tailscale_message, tr("tailscale_not_found"))
                 return
             try:
                 proc = subprocess.run(
@@ -610,20 +812,17 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
                     timeout=5,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
-                GLib.idle_add(self._render_tailscale_message, f"Erro ao consultar Tailscale: {exc}")
+                GLib.idle_add(self._render_tailscale_message, tr("tailscale_query_err", err=exc))
                 return
 
             if proc.returncode != 0:
-                GLib.idle_add(
-                    self._render_tailscale_message,
-                    "Tailscale desconectado ou indisponível no momento.",
-                )
+                GLib.idle_add(self._render_tailscale_message, tr("tailscale_disconnected"))
                 return
 
             try:
                 backend_state, peers = parse_tailscale_peers(proc.stdout)
             except (json.JSONDecodeError, ValueError) as exc:
-                GLib.idle_add(self._render_tailscale_message, f"Resposta inválida do Tailscale: {exc}")
+                GLib.idle_add(self._render_tailscale_message, tr("tailscale_invalid_json", err=exc))
                 return
 
             GLib.idle_add(self._render_tailscale_peers, backend_state, peers)
@@ -641,15 +840,15 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
     def _render_tailscale_peers(self, backend_state: str, peers: list[dict[str, Any]]) -> bool:
         self._clear_group_rows(self.tailscale_group, self._tailscale_rows)
         if backend_state.lower() != "running":
-            return self._render_tailscale_message(f"Tailscale não está ativo ({backend_state}).")
+            return self._render_tailscale_message(tr("tailscale_inactive", state=backend_state))
 
         if not peers:
-            return self._render_tailscale_message("Nenhum computador encontrado na sua rede Tailscale.")
+            return self._render_tailscale_message(tr("tailscale_empty"))
 
         for peer in peers:
             ip = peer["ip"]
             os_label = peer["os"].capitalize()
-            status_label = "Online" if peer["online"] else "Offline"
+            status_label = tr("status_online") if peer["online"] else tr("status_offline")
             subtitle = f"{ip} • {os_label} • {status_label}"
             icon_name = "network-workgroup-symbolic" if peer["os"] == "windows" else "computer-symbolic"
 
@@ -663,7 +862,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
 
             matched = self._find_profile_by_host(ip)
             has_saved_creds = bool(matched and matched.get("username"))
-            btn = Gtk.Button(label="Conectar" if has_saved_creds else "Selecionar")
+            btn = Gtk.Button(label=tr("btn_connect") if has_saved_creds else tr("btn_select"))
             btn.set_valign(Gtk.Align.CENTER)
             if has_saved_creds:
                 btn.add_css_class("suggested-action")
@@ -680,7 +879,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         matched = self._find_profile_by_host(peer["ip"])
         if matched:
             self._load_profile_into_form(matched)
-            self.show_toast(f"Credenciais salvas de '{matched.get('name')}' carregadas.")
+            self.show_toast(tr("toast_peer_saved_loaded", name=matched.get("name")))
             return
 
         self.selected_profile_id = None
@@ -689,7 +888,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         self.user_entry.set_text("")
         self.pass_entry.set_text("")
         self.user_entry.grab_focus()
-        self.show_toast(f"{peer['hostname']} selecionado — informe usuário e senha.")
+        self.show_toast(tr("toast_peer_selected", hostname=peer["hostname"]))
 
     def _read_form_values(self) -> tuple[str, int, str, str, str, str, bool, bool, bool]:
         host, port = parse_host_port(self.host_entry.get_text())
@@ -716,7 +915,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             return
 
         self.test_btn.set_sensitive(False)
-        self.show_toast(f"Testando porta {port} em {host}...")
+        self.show_toast(tr("toast_testing", port=port, host=host))
 
         def worker() -> None:
             try:
@@ -731,13 +930,11 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
     def _on_test_done(self, host: str, port: int, ok: bool, err: str) -> bool:
         self.test_btn.set_sensitive(True)
         if ok:
-            self.show_toast(f"Conexão OK! Porta {port} acessível em {host}.")
+            self.show_toast(tr("toast_test_ok", port=port, host=host))
         else:
             self.show_alert(
-                f"Porta {port} inacessível em {host}",
-                "Não foi possível alcançar o serviço RDP.\n\n"
-                "Verifique se o Windows está ligado, conectado ao Tailscale/rede local e com a Área de Trabalho Remota ativada.\n\n"
-                f"Erro: {err}",
+                tr("alert_test_fail_title", port=port, host=host),
+                tr("alert_test_fail_body", err=err),
             )
         return False
 
@@ -789,7 +986,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         save_profiles(self.profiles)
         if not store_password(profile_id, password):
             self._session_passwords[profile_id] = password
-            self.show_toast("PC salvo, mas o chaveiro do sistema não pôde guardar a senha.")
+            self.show_toast(tr("toast_keyring_warn"))
         self._rebuild_saved_group()
         self.refresh_tailscale_peers()
         return record
@@ -856,18 +1053,15 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         share_downloads: bool,
     ) -> None:
         if password and not username:
-            self.show_toast("Informe o usuário do Windows antes de conectar com senha.")
+            self.show_toast(tr("toast_need_user_for_pw"))
             self.user_entry.grab_focus()
             return
 
         base_cmd = resolve_freerdp_command()
         if base_cmd is None:
             self.show_alert(
-                "FreeRDP não instalado",
-                "Não foi encontrado nenhum cliente FreeRDP neste computador.\n\n"
-                "Instale uma das opções abaixo no terminal e tente novamente:\n"
-                "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP\n"
-                "• Ubuntu/Debian: sudo apt install freerdp-sdl",
+                tr("alert_freerdp_missing_title"),
+                tr("alert_freerdp_missing_body"),
             )
             return
 
@@ -881,7 +1075,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             share_downloads=share_downloads,
             base_cmd=base_cmd,
         )
-        self.show_toast(f"Iniciando conexão RDP com {host}...")
+        self.show_toast(tr("toast_connecting", host=host))
 
         def worker() -> None:
             try:
@@ -893,7 +1087,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
                     text=True,
                 )
             except OSError as exc:
-                GLib.idle_add(self.show_alert, "Erro ao abrir FreeRDP", str(exc))
+                GLib.idle_add(self.show_alert, tr("alert_launch_err"), str(exc))
                 return
 
             output = ""
@@ -906,7 +1100,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
                     output = proc.stdout.read()
                 returncode = proc.wait()
             except OSError as exc:
-                GLib.idle_add(self.show_alert, "Erro na sessão FreeRDP", str(exc))
+                GLib.idle_add(self.show_alert, tr("alert_session_err"), str(exc))
                 return
 
             if returncode != 0 and any(marker in output for marker in KNOWN_ERR_MARKERS):
@@ -947,7 +1141,12 @@ class RemoteDesktopApp(Adw.Application):
         temp_id: str | None = None
 
         try:
-            # 1. Verify Tailscale peer parsing (portable across machines)
+            # 1. Verify localized window title
+            assert self.window.get_title() == tr("app_name"), (
+                f"Expected title {tr('app_name')!r}, got {self.window.get_title()!r}"
+            )
+
+            # 2. Verify Tailscale peer parsing (portable across machines)
             ts_bin = shutil.which("tailscale")
             if ts_bin:
                 res = subprocess.run([ts_bin, "status", "--json"], capture_output=True, text=True, timeout=5)
@@ -955,7 +1154,7 @@ class RemoteDesktopApp(Adw.Application):
                     _state, peers = parse_tailscale_peers(res.stdout)
                     assert isinstance(peers, list)
 
-            # 2. Verify command construction (password never in argv)
+            # 3. Verify command construction (password never in argv)
             cmd, payload = build_freerdp_args(
                 host="100.67.218.113",
                 port=3389,
@@ -971,7 +1170,7 @@ class RemoteDesktopApp(Adw.Application):
             assert "/d:CORP" in cmd and "/u:diluca" in cmd
             assert "+dynamic-resolution" in cmd and "/v:100.67.218.113" in cmd
 
-            # 3. Verify profile save + Keyring roundtrip + delete cleanup
+            # 4. Verify profile save + Keyring roundtrip + delete cleanup
             prof = self.window._upsert_profile(
                 host="127.0.0.254",
                 port=3390,
@@ -1005,13 +1204,41 @@ class RemoteDesktopApp(Adw.Application):
         return False
 
 
+def _extract_cli_args(argv: list[str]) -> tuple[str | None, bool, bool, list[str]]:
+    """Extract --lang, --version, and --self-test flags without passing them to GTK."""
+    cli_lang: str | None = None
+    show_version = False
+    self_test = False
+    gtk_args: list[str] = [argv[0]]
+
+    i = 1
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--self-test":
+            self_test = True
+        elif arg == "--version":
+            show_version = True
+        elif arg.startswith("--lang="):
+            cli_lang = arg.split("=", 1)[1]
+        elif arg == "--lang" and i + 1 < len(argv):
+            cli_lang = argv[i + 1]
+            i += 1
+        else:
+            gtk_args.append(arg)
+        i += 1
+
+    return cli_lang, show_version, self_test, gtk_args
+
+
 def main() -> int:
-    if "--version" in sys.argv[1:]:
-        print(f"{APP_FULL_NAME} {APP_VERSION}")
+    global CURRENT_LANG
+    cli_lang, show_version, self_test, gtk_args = _extract_cli_args(sys.argv)
+    CURRENT_LANG = detect_language(cli_lang)
+
+    if show_version:
+        print(f"{tr('app_name')} {APP_VERSION}")
         return 0
 
-    self_test = "--self-test" in sys.argv[1:]
-    gtk_args = [arg for arg in sys.argv if arg != "--self-test"]
     app = RemoteDesktopApp(self_test=self_test)
     exit_code = app.run(gtk_args)
     if self_test:
