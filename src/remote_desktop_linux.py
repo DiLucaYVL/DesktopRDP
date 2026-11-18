@@ -25,7 +25,7 @@ gi.require_version("Secret", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Secret
 
 APP_ID = "io.github.dilucayvl.RemoteDesktopLinux"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 CONFIG_DIR = Path.home() / ".config" / "remote-desktop-linux"
 PROFILES_FILE = CONFIG_DIR / "profiles.json"
@@ -98,6 +98,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "combo_display": "Display Mode",
         "switch_sound": "Play Windows audio on this PC",
         "switch_downloads": "Share Downloads folder",
+        "switch_downloads_sub": "Mounts your ~/Downloads folder in Windows (This PC → \\\\tsclient\\Downloads) for file transfers",
         "btn_test": "Test Connection",
         "btn_connect_rdp": "Connect via RDP",
         "btn_connect": "Connect",
@@ -190,6 +191,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "combo_display": "Modo de Tela",
         "switch_sound": "Áudio do Windows neste PC",
         "switch_downloads": "Compartilhar pasta Downloads",
+        "switch_downloads_sub": "Monta sua pasta ~/Downloads no Windows (Este Computador → \\\\tsclient\\Downloads) para trocar arquivos",
         "btn_test": "Testar Conexão",
         "btn_connect_rdp": "Conectar via RDP",
         "btn_connect": "Conectar",
@@ -703,7 +705,10 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         self.sound_switch.set_active(True)
         opts_group.add(self.sound_switch)
 
-        self.downloads_switch = Adw.SwitchRow(title=tr("switch_downloads"))
+        self.downloads_switch = Adw.SwitchRow(
+            title=tr("switch_downloads"),
+            subtitle=tr("switch_downloads_sub"),
+        )
         self.downloads_switch.set_active(True)
         opts_group.add(self.downloads_switch)
 
@@ -1221,7 +1226,8 @@ class RemoteDesktopApp(Adw.Application):
     """GTK4/Libadwaita Application wrapper."""
 
     def __init__(self, self_test: bool = False) -> None:
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        flags = Gio.ApplicationFlags.NON_UNIQUE if self_test else Gio.ApplicationFlags.FLAGS_NONE
+        super().__init__(application_id=APP_ID, flags=flags)
         self.self_test = self_test
         self.window: RemoteDesktopWindow | None = None
         self.test_passed = False
@@ -1255,6 +1261,9 @@ class RemoteDesktopApp(Adw.Application):
             )
             assert self.window.get_title() == tr("app_name"), (
                 f"Expected title {tr('app_name')!r}, got {self.window.get_title()!r}"
+            )
+            assert self.window.downloads_switch.get_subtitle() == tr("switch_downloads_sub"), (
+                f"Expected downloads subtitle {tr('switch_downloads_sub')!r}, got {self.window.downloads_switch.get_subtitle()!r}"
             )
 
             # 2. Verify native FreeRDP resolution (not flatpak on this host)

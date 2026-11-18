@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="1.2.0"
+VERSION="1.2.1"
 PKG_NAME="remote-desktop-linux"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$(mktemp -d)"

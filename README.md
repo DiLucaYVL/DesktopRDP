@@ -18,10 +18,10 @@ O aplicativo adapta automaticamente o nome no menu do sistema, o título da jane
 ### Instalação
 
 #### Opção 1: Pacote `.deb` (Ubuntu / Debian e derivados)
-Baixe o arquivo `remote-desktop-linux_1.2.0_all.deb` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e instale com:
+Baixe o arquivo `remote-desktop-linux_1.2.1_all.deb` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e instale com:
 
 ```bash
-sudo apt install ./remote-desktop-linux_1.2.0_all.deb
+sudo apt install ./remote-desktop-linux_1.2.1_all.deb
 ```
 
 #### Opção 2: Instalação local no usuário (qualquer Linux)
@@ -50,9 +50,9 @@ Para desinstalar na instalação local:
 ### Installation
 
 #### Debian / Ubuntu (`.deb`)
-Download `remote-desktop-linux_1.2.0_all.deb` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases):
+Download `remote-desktop-linux_1.2.1_all.deb` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases):
 ```bash
-sudo apt install ./remote-desktop-linux_1.2.0_all.deb
+sudo apt install ./remote-desktop-linux_1.2.1_all.deb
 ```
 
 #### User-level Install (Any Linux Distro)
