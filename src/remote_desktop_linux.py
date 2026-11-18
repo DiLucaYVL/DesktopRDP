@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 import json
 import locale
 import os
@@ -24,7 +25,7 @@ gi.require_version("Secret", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Secret
 
 APP_ID = "io.github.dilucayvl.RemoteDesktopLinux"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 CONFIG_DIR = Path.home() / ".config" / "remote-desktop-linux"
 PROFILES_FILE = CONFIG_DIR / "profiles.json"
@@ -132,8 +133,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "alert_freerdp_missing_body": (
             "No FreeRDP client was found on this computer.\n\n"
             "Install one of the options below in a terminal and try again:\n"
-            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP\n"
-            "• Ubuntu/Debian: sudo apt install freerdp-sdl"
+            "• Ubuntu/Debian: sudo apt install freerdp-x11\n"
+            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP"
         ),
         "toast_connecting": "Starting RDP session to {host}...",
         "alert_launch_err": "Failed to start FreeRDP",
@@ -224,8 +225,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "alert_freerdp_missing_body": (
             "Não foi encontrado nenhum cliente FreeRDP neste computador.\n\n"
             "Instale uma das opções abaixo no terminal e tente novamente:\n"
-            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP\n"
-            "• Ubuntu/Debian: sudo apt install freerdp-sdl"
+            "• Ubuntu/Debian: sudo apt install freerdp-x11\n"
+            "• Flatpak: flatpak install --user flathub com.freerdp.FreeRDP"
         ),
         "toast_connecting": "Iniciando conexão RDP com {host}...",
         "alert_launch_err": "Erro ao abrir FreeRDP",
@@ -276,6 +277,28 @@ _FREERDP_CMD_UNSET = object()
 _FREERDP_CMD_CACHE: list[str] | None | object = _FREERDP_CMD_UNSET
 
 
+def find_desktop_file() -> str | None:
+    """Locate the installed .desktop file for matching window identity."""
+    for candidate in (
+        Path.home() / ".local" / "share" / "applications" / f"{APP_ID}.desktop",
+        Path("/usr/local/share/applications") / f"{APP_ID}.desktop",
+        Path("/usr/share/applications") / f"{APP_ID}.desktop",
+    ):
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _is_flatpak_wrapper(binary_path: str) -> bool:
+    """Return True if a script wrapper delegates to `flatpak run`."""
+    try:
+        with open(binary_path, "rb") as fh:
+            head = fh.read(512)
+        return head.startswith(b"#!") and b"flatpak" in head
+    except OSError:
+        return False
+
+
 def parse_host_port(raw_host: str, fallback_port: int = 3389) -> tuple[str, int]:
     """Parse host and optional port from user input, supporting IPv4, hostnames, and IPv6."""
     text = raw_host.strip()
@@ -316,24 +339,34 @@ def _validate_port(port_str: str) -> int:
 
 
 def resolve_freerdp_command() -> list[str] | None:
-    """Return the preferred FreeRDP launcher command, caching the lookup result."""
+    """Prefer native FreeRDP binaries for single-app window grouping, falling back to Flatpak."""
     global _FREERDP_CMD_CACHE
     if _FREERDP_CMD_CACHE is not _FREERDP_CMD_UNSET:
         return list(_FREERDP_CMD_CACHE) if _FREERDP_CMD_CACHE is not None else None
 
+    local_lib_bin = Path.home() / ".local" / "lib" / "remote-desktop-linux" / "usr" / "bin"
     found: list[str] | None = None
+
     for candidate in (
-        "/usr/bin/sdl-freerdp",
-        "/usr/bin/sdl-freerdp3",
-        "/usr/bin/wlfreerdp",
         "/usr/bin/xfreerdp",
         "/usr/bin/xfreerdp3",
-        "/usr/local/bin/sdl-freerdp",
+        str(local_lib_bin / "xfreerdp"),
+        str(local_lib_bin / "xfreerdp3"),
         "/usr/local/bin/xfreerdp",
+        "/usr/local/bin/xfreerdp3",
+        "/usr/bin/sdl-freerdp",
+        "/usr/bin/sdl-freerdp3",
     ):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             found = [candidate]
             break
+
+    if found is None:
+        for name in ("xfreerdp", "xfreerdp3"):
+            which_path = shutil.which(name)
+            if which_path and not _is_flatpak_wrapper(which_path):
+                found = [which_path]
+                break
 
     if found is None:
         flatpak_bin = shutil.which("flatpak")
@@ -351,7 +384,7 @@ def resolve_freerdp_command() -> list[str] | None:
                 pass
 
     if found is None:
-        for name in ("sdl-freerdp", "sdl-freerdp3", "xfreerdp", "xfreerdp3"):
+        for name in ("sdl-freerdp", "sdl-freerdp3"):
             which_path = shutil.which(name)
             if which_path:
                 found = [which_path]
@@ -370,13 +403,25 @@ def build_freerdp_args(
     sound: bool,
     share_downloads: bool,
     base_cmd: list[str] | None = None,
+    session_title: str = "",
 ) -> tuple[list[str], str | None]:
     """Build FreeRDP CLI argv (never containing password) and optional stdin payload."""
     cmd = list(base_cmd) if base_cmd is not None else (resolve_freerdp_command() or [])
     if not cmd:
         raise FileNotFoundError(tr("err_freerdp_missing"))
 
-    cmd.extend([f"/v:{host}", f"/port:{port}", "/cert:ignore", "+clipboard", "/network:auto"])
+    title_str = session_title.strip() or f"{tr('app_name')} — {host}"
+    cmd.extend(
+        [
+            f"/v:{host}",
+            f"/port:{port}",
+            "/cert:ignore",
+            "+clipboard",
+            "/network:auto",
+            f"/wm-class:{APP_ID}",
+            f"/t:{title_str}",
+        ]
+    )
 
     user_clean = username.strip()
     if "\\" in user_clean:
@@ -558,6 +603,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         self._tailscale_rows: list[Gtk.Widget] = []
         self._saved_rows: list[Gtk.Widget] = []
         self._session_passwords: dict[str, str] = {}
+        self._active_sessions = 0
 
         self._build_ui()
         self._rebuild_saved_group()
@@ -1021,6 +1067,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             display_mode=display_mode,
             sound=sound,
             share_downloads=share_downloads,
+            label=name,
         )
 
     def _connect_profile(self, profile: dict[str, Any]) -> None:
@@ -1032,6 +1079,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         display_mode = str(profile.get("display_mode", "windowed"))
         sound = bool(profile.get("sound", True))
         share_downloads = bool(profile.get("share_downloads", True))
+        label = str(profile.get("name") or host)
         self._launch_freerdp(
             host=host,
             port=port,
@@ -1040,6 +1088,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             display_mode=display_mode,
             sound=sound,
             share_downloads=share_downloads,
+            label=label,
         )
 
     def _launch_freerdp(
@@ -1051,6 +1100,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
         display_mode: str,
         sound: bool,
         share_downloads: bool,
+        label: str = "",
     ) -> None:
         if password and not username:
             self.show_toast(tr("toast_need_user_for_pw"))
@@ -1065,6 +1115,7 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             )
             return
 
+        session_title = f"{tr('app_name')} — {label or host}"
         cmd, stdin_payload = build_freerdp_args(
             host=host,
             port=port,
@@ -1074,40 +1125,96 @@ class RemoteDesktopWindow(Adw.ApplicationWindow):
             sound=sound,
             share_downloads=share_downloads,
             base_cmd=base_cmd,
+            session_title=session_title,
         )
-        self.show_toast(tr("toast_connecting", host=host))
+
+        app = self.get_application()
+        if app is not None:
+            app.hold()
+        self._active_sessions += 1
+        self.set_visible(False)
+
+        child_env = os.environ.copy()
+        desktop_file = find_desktop_file()
+        if desktop_file:
+            child_env["GIO_LAUNCHED_DESKTOP_FILE"] = desktop_file
+        child_env["SDL_VIDEO_WAYLAND_WMCLASS"] = APP_ID
+        child_env["SDL_VIDEO_X11_WMCLASS"] = APP_ID
+        child_env["SDL_APP_ID"] = APP_ID
+        exec_cmd = ["/bin/sh", "-c", 'export GIO_LAUNCHED_DESKTOP_FILE_PID=$$; exec "$@"', "--", *cmd]
 
         def worker() -> None:
             try:
                 proc = subprocess.Popen(
-                    cmd,
+                    exec_cmd,
+                    env=child_env,
                     stdin=subprocess.PIPE if stdin_payload is not None else subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
                 )
             except OSError as exc:
-                GLib.idle_add(self.show_alert, tr("alert_launch_err"), str(exc))
+                GLib.idle_add(
+                    self._on_session_finished,
+                    host,
+                    port,
+                    -1,
+                    "",
+                    tr("alert_launch_err"),
+                    str(exc),
+                )
                 return
 
-            output = ""
+            lines: deque[str] = deque(maxlen=80)
             try:
                 if stdin_payload is not None and proc.stdin is not None:
                     proc.stdin.write(stdin_payload)
                     proc.stdin.flush()
                     proc.stdin.close()
                 if proc.stdout is not None:
-                    output = proc.stdout.read()
+                    for line in proc.stdout:
+                        lines.append(line.rstrip("\n"))
                 returncode = proc.wait()
             except OSError as exc:
-                GLib.idle_add(self.show_alert, tr("alert_session_err"), str(exc))
+                GLib.idle_add(
+                    self._on_session_finished,
+                    host,
+                    port,
+                    -1,
+                    "\n".join(lines),
+                    tr("alert_session_err"),
+                    str(exc),
+                )
                 return
 
-            if returncode != 0 and any(marker in output for marker in KNOWN_ERR_MARKERS):
-                title, body = format_freerdp_error(host, port, output)
-                GLib.idle_add(self.show_alert, title, body)
+            GLib.idle_add(self._on_session_finished, host, port, returncode, "\n".join(lines), None, None)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _on_session_finished(
+        self,
+        host: str,
+        port: int,
+        returncode: int,
+        output: str,
+        direct_err_title: str | None,
+        direct_err_body: str | None,
+    ) -> bool:
+        self._active_sessions = max(0, self._active_sessions - 1)
+        if self._active_sessions == 0:
+            self.set_visible(True)
+            self.present()
+
+        app = self.get_application()
+        if app is not None:
+            app.release()
+
+        if direct_err_title is not None:
+            self.show_alert(direct_err_title, direct_err_body or "")
+        elif returncode != 0 and any(marker in output for marker in KNOWN_ERR_MARKERS):
+            title, body = format_freerdp_error(host, port, output)
+            self.show_alert(title, body)
+        return False
 
 
 class RemoteDesktopApp(Adw.Application):
@@ -1141,12 +1248,23 @@ class RemoteDesktopApp(Adw.Application):
         temp_id: str | None = None
 
         try:
-            # 1. Verify localized window title
+            # 1. Verify single-app desktop identity & localized title
+            assert GLib.get_prgname() == APP_ID, f"prgname mismatch: {GLib.get_prgname()!r}"
+            assert GLib.get_application_name() == tr("app_name"), (
+                f"application_name mismatch: {GLib.get_application_name()!r}"
+            )
             assert self.window.get_title() == tr("app_name"), (
                 f"Expected title {tr('app_name')!r}, got {self.window.get_title()!r}"
             )
 
-            # 2. Verify Tailscale peer parsing (portable across machines)
+            # 2. Verify native FreeRDP resolution (not flatpak on this host)
+            resolved = resolve_freerdp_command()
+            assert resolved is not None, "resolve_freerdp_command() returned None"
+            assert os.path.basename(resolved[0]) in {"xfreerdp", "xfreerdp3", "sdl-freerdp", "sdl-freerdp3"}, (
+                f"Expected native FreeRDP binary, got {resolved}"
+            )
+
+            # 3. Verify Tailscale peer parsing (portable across machines)
             ts_bin = shutil.which("tailscale")
             if ts_bin:
                 res = subprocess.run([ts_bin, "status", "--json"], capture_output=True, text=True, timeout=5)
@@ -1154,7 +1272,7 @@ class RemoteDesktopApp(Adw.Application):
                     _state, peers = parse_tailscale_peers(res.stdout)
                     assert isinstance(peers, list)
 
-            # 3. Verify command construction (password never in argv)
+            # 4. Verify command construction (WM_CLASS, title, password never in argv)
             cmd, payload = build_freerdp_args(
                 host="100.67.218.113",
                 port=3389,
@@ -1163,14 +1281,17 @@ class RemoteDesktopApp(Adw.Application):
                 display_mode="windowed",
                 sound=True,
                 share_downloads=True,
-                base_cmd=["sdl-freerdp"],
+                base_cmd=resolved,
+                session_title=f"{tr('app_name')} — FINTECH_DEV",
             )
             assert all("/p:" not in arg and "s3cr3t" not in arg for arg in cmd), f"Password leaked in argv: {cmd}"
             assert "/from-stdin:force" in cmd and payload == "s3cr3t pass!\n"
             assert "/d:CORP" in cmd and "/u:diluca" in cmd
+            assert f"/wm-class:{APP_ID}" in cmd
+            assert any(arg.startswith("/t:") for arg in cmd)
             assert "+dynamic-resolution" in cmd and "/v:100.67.218.113" in cmd
 
-            # 4. Verify profile save + Keyring roundtrip + delete cleanup
+            # 5. Verify profile save + Keyring roundtrip + delete cleanup
             prof = self.window._upsert_profile(
                 host="127.0.0.254",
                 port=3390,
@@ -1238,6 +1359,9 @@ def main() -> int:
     if show_version:
         print(f"{tr('app_name')} {APP_VERSION}")
         return 0
+
+    GLib.set_prgname(APP_ID)
+    GLib.set_application_name(tr("app_name"))
 
     app = RemoteDesktopApp(self_test=self_test)
     exit_code = app.run(gtk_args)
