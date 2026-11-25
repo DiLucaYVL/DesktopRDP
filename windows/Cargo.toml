@@ -1,6 +1,6 @@
 [package]
 name = "desktoprdp"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2021"
 description = "DesktopRDP for Windows: Libadwaita-style RDP launcher (Tailscale + mstsc.exe)"
 license = "MIT"
@@ -24,6 +24,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_Globalization",
     "Win32_Graphics_Dwm",
     "Win32_System_Registry",
+    "Win32_UI_HiDpi",
     "Win32_UI_WindowsAndMessaging",
 ] }
 raw-window-handle = "0.6"
