@@ -37,7 +37,7 @@ Para desinstalar na instalação local:
 ```
 
 #### Opção 3: Windows 10/11 (controlar este PC Linux a partir do Windows)
-Baixe `DesktopRDP-1.3.0-x64.msi` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e execute (instala em *Arquivos de Programas* e cria atalhos **Área de trabalho remota** no Menu Iniciar e na Área de Trabalho; desinstale por *Configurações → Aplicativos*).
+Baixe `DesktopRDP-1.3.1-x64.msi` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e execute (instala em *Arquivos de Programas* e cria atalhos **Área de trabalho remota** no Menu Iniciar e na Área de Trabalho; desinstale por *Configurações → Aplicativos*).
 
 O app do Windows tem o **mesmo visual do app Linux** (Libadwaita, segue o tema claro/escuro do Windows), feito em **Rust nativo** (egui + Direct3D 12) — sem navegador embutido, um único `.exe` de ~8 MB. Ele:
 - lista os PCs do seu Tailscale (Linux e Windows) e os PCs salvos;
@@ -75,7 +75,7 @@ cd DesktopRDP
 ```
 
 #### Windows 10/11 (control this Linux PC from Windows)
-Download `DesktopRDP-1.3.0-x64.msi` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) and run it (installs to *Program Files* and adds **Remote Desktop** shortcuts to the Start menu and desktop; uninstall from *Settings → Apps*).
+Download `DesktopRDP-1.3.1-x64.msi` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) and run it (installs to *Program Files* and adds **Remote Desktop** shortcuts to the Start menu and desktop; uninstall from *Settings → Apps*).
 
 The Windows app has the **same look as the Linux app** (Libadwaita, follows the Windows light/dark theme) and is **native Rust** (egui + Direct3D 12) — no embedded browser, a single ~8 MB `.exe`. It:
 - lists your Tailscale computers (Linux and Windows) and saved PCs;
