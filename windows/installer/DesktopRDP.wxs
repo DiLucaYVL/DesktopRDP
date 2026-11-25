@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSI for the DesktopRDP Windows client. Built with wixl (msitools) by windows/build.sh;
+     also compatible with WiX 3 candle/light.
+     Variables: -D Version=x.y.z -D ExePath=path/to/DesktopRDP.exe -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="DesktopRDP"
+           Language="1046"
+           Codepage="1252"
+           Version="$(var.Version)"
+           Manufacturer="DiLucaYVL"
+           UpgradeCode="6F1C9B52-3D3A-4C8E-9E0B-2B9E7A1D4C10">
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Languages="1046"
+             SummaryCodepage="1252"
+             Description="DesktopRDP $(var.Version) - Área de trabalho remota"
+             Comments="Controle PCs Linux e Windows por RDP (Tailscale ou rede local)"
+             Manufacturer="DiLucaYVL" />
+
+    <MajorUpgrade DowngradeErrorMessage="Uma versão mais nova do DesktopRDP já está instalada." />
+    <Media Id="1" Cabinet="DesktopRDP.cab" EmbedCab="yes" />
+
+    <Icon Id="DesktopRDP.ico" SourceFile="app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="DesktopRDP.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/DiLucaYVL/DesktopRDP" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/DiLucaYVL/DesktopRDP/issues" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="DesktopRDP">
+          <Component Id="MainExecutable" Guid="3B2F7A61-1C0E-4C55-8B3A-9D4E2F6A7B01" Win64="yes">
+            <File Id="DesktopRDPExe" Name="DesktopRDP.exe" Source="$(var.ExePath)" KeyPath="yes" />
+          </Component>
+          <Component Id="License" Guid="3B2F7A61-1C0E-4C55-8B3A-9D4E2F6A7B02" Win64="yes">
+            <File Id="LicenseTxt" Name="LICENSE.txt" Source="../../LICENSE" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="3B2F7A61-1C0E-4C55-8B3A-9D4E2F6A7B03" Win64="yes">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="Área de trabalho remota"
+                  Description="Controle PCs Linux e Windows por RDP"
+                  Target="[INSTALLDIR]DesktopRDP.exe"
+                  WorkingDirectory="INSTALLDIR" />
+        <RegistryValue Root="HKLM" Key="Software\DesktopRDP" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="3B2F7A61-1C0E-4C55-8B3A-9D4E2F6A7B04" Win64="yes">
+        <Shortcut Id="DesktopShortcut"
+                  Name="Área de trabalho remota"
+                  Description="Controle PCs Linux e Windows por RDP"
+                  Target="[INSTALLDIR]DesktopRDP.exe"
+                  WorkingDirectory="INSTALLDIR" />
+        <RegistryValue Root="HKLM" Key="Software\DesktopRDP" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Complete" Title="DesktopRDP" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="License" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Product>
+</Wix>

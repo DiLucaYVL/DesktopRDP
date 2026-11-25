@@ -1,0 +1,65 @@
+--- a/client/X11/xf_cliprdr.c
++++ b/client/X11/xf_cliprdr.c
+@@ -120,6 +120,11 @@
+ 	wArrayList* pending_responses;
+ 	wArrayList* queued_responses;
+ 
++	/* Format Data Requests sent to the server and not yet answered, and how many of
++	 * those answers belong to requests dropped by a newer server Format List. */
++	UINT32 requestsInFlight;
++	UINT32 staleResponses;
++
+ 	Window owner;
+ 	BOOL sync;
+ 
+@@ -489,7 +494,10 @@
+ 	WINPR_ASSERT(clipboard);
+ 	WINPR_ASSERT(clipboard->context);
+ 	WINPR_ASSERT(clipboard->context->ClientFormatDataRequest);
+-	return clipboard->context->ClientFormatDataRequest(clipboard->context, &request);
++	const UINT rc = clipboard->context->ClientFormatDataRequest(clipboard->context, &request);
++	if (rc == CHANNEL_RC_OK)
++		clipboard->requestsInFlight++;
++	return rc;
+ }
+ 
+ /**
+@@ -2138,9 +2146,17 @@
+ 
+ 	xf_lock_x11(xfc);
+ 
+-	/* Clear the active SelectionRequest, as it is now invalid */
++	/* Clear the active SelectionRequest, as it is now invalid.
++	 * Responses to requests already sent are still on their way: remember how many,
++	 * so they are discarded instead of being matched to the next request (a CF_TEXT
++	 * answer read as CF_UNICODETEXT shows up as CJK garbage). */
++	ArrayList_Lock(clipboard->pending_responses);
++	ArrayList_Lock(clipboard->queued_responses);
++	clipboard->staleResponses = clipboard->requestsInFlight;
+ 	ArrayList_Clear(clipboard->pending_responses);
+ 	ArrayList_Clear(clipboard->queued_responses);
++	ArrayList_Unlock(clipboard->queued_responses);
++	ArrayList_Unlock(clipboard->pending_responses);
+ 
+ 	xf_cliprdr_clear_cached_data(clipboard);
+ 
+@@ -2324,6 +2340,19 @@
+ 	xf_lock_x11(xfc);
+ 	ArrayList_Lock(clipboard->pending_responses);
+ 	ArrayList_Lock(clipboard->queued_responses);
++	if (clipboard->requestsInFlight > 0)
++		clipboard->requestsInFlight--;
++	if (clipboard->staleResponses > 0)
++	{
++		clipboard->staleResponses--;
++		WLog_Print(clipboard->log, WLOG_DEBUG,
++		           "Discarding stale Format Data Response: the clipboard changed while "
++		           "the request was in flight");
++		ArrayList_Unlock(clipboard->queued_responses);
++		ArrayList_Unlock(clipboard->pending_responses);
++		xf_unlock_x11(xfc);
++		return CHANNEL_RC_OK;
++	}
+ 	if (formatDataResponse->common.msgFlags == CB_RESPONSE_FAIL)
+ 	{
+ 		WLog_Print(clipboard->log, WLOG_WARN,

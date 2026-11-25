@@ -36,6 +36,18 @@ Para desinstalar na instalação local:
 ./uninstall.sh
 ```
 
+#### Opção 3: Windows 10/11 (controlar este PC Linux a partir do Windows)
+Baixe `DesktopRDP-1.3.0-x64.msi` na aba [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) e execute (instala em *Arquivos de Programas* e cria atalhos **Área de trabalho remota** no Menu Iniciar e na Área de Trabalho; desinstale por *Configurações → Aplicativos*).
+
+O app do Windows tem o **mesmo visual do app Linux** (Libadwaita, segue o tema claro/escuro do Windows), feito em **Rust nativo** (egui + Direct3D 12) — sem navegador embutido, um único `.exe` de ~8 MB. Ele:
+- lista os PCs do seu Tailscale (Linux e Windows) e os PCs salvos;
+- abre a sessão no cliente nativo do Windows (`mstsc.exe`), com a senha guardada no **Gerenciador de Credenciais do Windows** (nunca na linha de comando);
+- oferece **usar todos os monitores** (como a opção "Usar todos os meus monitores" da Conexão de Área de Trabalho Remota), modo de tela, áudio remoto e área de transferência compartilhada.
+
+No **PC Linux** que será controlado, ative o servidor RDP do GNOME: **Configurações → Sistema → Área de Trabalho Remota → Compartilhamento de Área de Trabalho** (ligue também **Controle Remoto**) e use o usuário/senha RDP mostrados ali.
+
+Para gerar o `.msi` a partir do Linux (Rust + zig + wixl): veja `windows/build.sh`.
+
 ---
 
 ## English
@@ -62,6 +74,18 @@ cd DesktopRDP
 ./install.sh
 ```
 
+#### Windows 10/11 (control this Linux PC from Windows)
+Download `DesktopRDP-1.3.0-x64.msi` from [Releases](https://github.com/DiLucaYVL/DesktopRDP/releases) and run it (installs to *Program Files* and adds **Remote Desktop** shortcuts to the Start menu and desktop; uninstall from *Settings → Apps*).
+
+The Windows app has the **same look as the Linux app** (Libadwaita, follows the Windows light/dark theme) and is **native Rust** (egui + Direct3D 12) — no embedded browser, a single ~8 MB `.exe`. It:
+- lists your Tailscale computers (Linux and Windows) and saved PCs;
+- opens the session in the built-in Windows client (`mstsc.exe`), with the password kept in **Windows Credential Manager** (never on a command line);
+- offers **use all monitors** (like Remote Desktop Connection's "Use all my monitors"), display mode, remote audio and shared clipboard.
+
+On the **Linux PC** you want to control, enable GNOME's RDP server: **Settings → System → Remote Desktop → Desktop Sharing** (also turn on **Remote Control**) and use the RDP username/password shown there.
+
+To build the `.msi` on Linux (Rust + zig + wixl): see `windows/build.sh`.
+
 ---
 
 ## Prerequisites / Pré-requisitos (FreeRDP)
@@ -76,3 +100,13 @@ A aplicação prioriza o **FreeRDP nativo (`xfreerdp`)** para manter a integraç
   ```bash
   flatpak install --user flathub com.freerdp.FreeRDP
   ```
+
+### Área de transferência com caracteres chineses / Clipboard turning into Chinese characters
+
+O `xfreerdp` 3.x pode colar texto copiado no Windows como caracteres chineses (até a próxima cópia): quando a área de transferência remota muda com um pedido em andamento, a resposta atrasada é lida no formato errado (CF_TEXT como UTF-16). O patch `patches/freerdp/xf_cliprdr-stale-response.patch` corrige; para recompilar e instalar o `xfreerdp` corrigido (sem root):
+
+FreeRDP 3.x `xfreerdp` may paste text copied on Windows as Chinese characters (until the next copy): when the remote clipboard changes while a request is in flight, the late answer is decoded in the wrong format (CF_TEXT as UTF-16). `patches/freerdp/xf_cliprdr-stale-response.patch` fixes it; to rebuild and install the patched `xfreerdp` (no root needed):
+
+```bash
+./scripts/build-patched-xfreerdp.sh
+```
